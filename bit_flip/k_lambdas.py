@@ -173,7 +173,6 @@ def plot_2d_graph(problem, weighted_inference_graph):
             else:
                 ax.arrow(a[0] - 0.2, a[1], b[0] - a[0] + 0.4, 0,
                      head_width=0.1, head_length=0.1, fc='k', )
-    plt.show()
 
 
 def plot_3d_graph(problem, weighted_inference_graph):
@@ -210,7 +209,6 @@ def plot_3d_graph(problem, weighted_inference_graph):
         v.append(target[1] - source[1])
         w.append(target[2] - source[2])
     ax.quiver(x, y, z, u, v, w, pivot="tail", length=0.7, arrow_length_ratio=0.05)
-    plt.show()
 
 
 def create_weighted_corruption_graph(weighted_inference_graph):
@@ -308,7 +306,6 @@ def solve_graph(weighted_corruption_graph):
             if not any:
                 break
         for n in to_dismiss:
-            print n[0], n[1]
             if n in g:
                 dismiss_node(g, n)
     return g
@@ -319,20 +316,30 @@ def is_graph_solveable(unweighted_corruption_graph):
 
 
 def main2d():
-    problem = Problem_k_D([20, 20], [0.28, 0.3], 0.6)
-    graph = create_weighted_graph(problem)
-    corruption = create_weighted_corruption_graph(graph)
-    leftovers = solve_graph(corruption)
-    for n in leftovers.nodes():
-        graph.node[n]["label"] = "%.2f" % (math.log(leftovers.node[n]["w"]))
-    plot_2d_graph(problem, graph)
+    n_list = [10, 10]
+    p = 0.5
+    for i, lambdas in enumerate([(0.2, 0.1), (0.1, 0.1), (0.01, 0.02), (0.9, 0.3)]):
+        problem = Problem_k_D(n_list, lambdas, p)
+        graph = create_weighted_graph(problem)
+        corruption = create_weighted_corruption_graph(graph)
+        leftovers = solve_graph(corruption)
+        for n in leftovers.nodes():
+            graph.node[n]["label"] = "%.2f" % (math.log(leftovers.node[n]["w"]))
+        plot_2d_graph(problem, graph)
+        plt.title("n_list=%s, lambda=%s, p=%.2f" % (n_list, lambdas, p))
+        plt.savefig("../output/sample_2D_{:02d}.png".format(i))
+        plt.close()
 
 
 def main3d():
-    problem = Problem_k_D([5, 5, 5], [0.1, 0.2, 0.02], 0.6)
+    n_list, lambdas, p = [5, 5, 5], [0.1, 0.2, 0.02], 0.6
+    problem = Problem_k_D(n_list, lambdas, p)
     graph = create_weighted_graph(problem)
-
     plot_3d_graph(problem, graph)
+    plt.title("n_list=%s, lambda=%s, p=%.2f" % (n_list, lambdas, p))
+    plt.show()
+
 
 if __name__ == '__main__':
     main2d()
+    main3d()
