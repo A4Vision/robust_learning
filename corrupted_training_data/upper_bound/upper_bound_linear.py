@@ -8,6 +8,7 @@ import lasagne
 import lasagne.layers
 from corrupted_training_data import utils
 import upper_bound_iterative
+from matplotlib import pyplot as plt
 
 
 class LinearCorruptionOptimizer(upper_bound_iterative.CorruptionOptimizer):
@@ -41,7 +42,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         part1 = theano.tensor.dot(self._X1_sym, self._w_sym)
         w_abs = theano.tensor.abs_(self._w_sym)
         part2 = C * theano.tensor.dot(self._X2_sym, w_abs)
-        self._xi = 1. - part1 * self._y_sym + part2
+        self._xi = 1. - part1 * self._y_sym + part2 * 0
 
         self._output = nnet.sigmoid(part1)
         self._prediction = 2 * (self._output > 0.5) - 1
@@ -70,7 +71,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
 
     def upper_bound_loss(self, corrupted_data, labels):
         zeroed_data, binary_data = self._transform_data(corrupted_data)
-        return self._f_loss(zeroed_data, binary_data, labels)
+        return self._f_loss(zeroed_data, binary_data, labels)[0]
 
     def loss(self, data, labels):
         # Same implementation works for uncorrupted data
@@ -95,38 +96,53 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         X1 = np.float32(data)
         output, prediction, l2_penalty = self._f_validation(X1)
         accuracy = np.average(prediction == labels)
-        print 'accuracy', accuracy
-        print 'l2_penalty', l2_penalty
         return accuracy
 
-    def optimize_hypothesis(self, corrupted_data, labels, n_epochs, learning_rate):
+    def optimize_hypothesis(self, corrupted_data, labels, n_epochs, learning_rate,
+                            validation_data, validation_labels, plot=True):
         """
         Finds the hypothesis that minimizes the naive upper bound over the loss function.
         :param corrupted_data:
         :param labels:
         :return:
         """
-        self._w_sym.set_value(np.random.random(self._w_sym.get_value().size) - 0.5)
+        self._w_sym.set_value(2 * np.random.random(self._w_sym.get_value().size) - 1.)
         sgd_updates = lasagne.updates.sgd(self._total_loss, [self._w_sym], learning_rate=learning_rate)
         f_training = theano.function([self._X1_sym, self._X2_sym, self._y_sym], outputs=[self._total_loss, self._loss],
                                      updates=sgd_updates)
         # beta = 0.8
-        batch_size = 50
+        batch_size = 500
         logging.info('training (n_epochs, batch_size) = (' + str(n_epochs) + ', ' + str(batch_size) + ')')
         # prev_train_loss = 10000.
         i = 0
         X1, X2 = self._transform_data(corrupted_data)
         Y = np.float32(labels)
-        i = 0
+        start = time.time()
+        accuracies = []
+        training_losses = []
+        w_size = []
         for n in xrange(n_epochs):
-            start = time.time()
             for x1_batch, x2_batch, y_batch in iterate_minibatches(X1, X2, Y, batch_size, shuffle=True):
-                i += 1
-                total_loss_train, loss_train, = f_training(x1_batch, x2_batch, y_batch)
-                if i % 100 == 0:
-                    print total_loss_train
-                    # prev_train_loss = loss_train
-            # print "epoch duration", time.time() - start
+                f_training(x1_batch, x2_batch, y_batch)
+            total_loss_upper_bound_training = self._f_loss(X1, X2, Y)
+            accuracy_validation = self.accuracy(validation_data, validation_labels)
+            training_losses.append(total_loss_upper_bound_training)
+            accuracies.append(accuracy_validation)
+            w_size.append(np.sum(self.get_hypothesis() ** 2))
+        print 'Training ({}) time elapsed: {}s'.format(n_epochs, time.time() - start)
+        if plot:
+            f, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
+            ax1.plot(accuracies, '-*r')
+            ax2.plot(training_losses, '-+b')
+            ax3.plot(w_size, '-+g')
+            plt.show()
+        return accuracies, self._calculate_drop(accuracies)
+
+    def _calculate_drop(self, values):
+        for i in xrange(1, len(values)):
+            if values[i] < values[i - 1] - 0.05:
+                return values[i - 1]
+        return values[-1]
 
 
 def iterate_minibatches(inputs1, inputs2, targets, batchsize, shuffle):

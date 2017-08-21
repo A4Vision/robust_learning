@@ -12,27 +12,30 @@ def create_data(C, k, n, amount):
     data = (2 * np.random.random(size=(amount, n)) - 1.) * C
     w = np.random.random(size=(n,)) * 2 - 1.
     values = np.dot(data, w)
-    print values
-    print np.average(values), np.var(values)
+    indices_of_good_examples = (np.abs(values) > C * k).nonzero()
+    data = data[indices_of_good_examples]
+    values = values[indices_of_good_examples]
+    print np.average(np.abs(values)), np.var(np.abs(values))
     labels = np.sign(values)
     return data, labels
 
 
 def experiment1():
-    learning_rate = 0.00001
-    regular_coef = 0.001
+    np.random.seed(123)
+    learning_rate = 0.001
+    regular_coef = 0.
     C = 1.
-    k = 5
+    k = 4
     n_iterations = 10
-    n = 20
-    data_amount = 10000
+    n = 40
+    data_amount = 100000
     data, labels = create_data(C, k, n, data_amount)
     first = int(data.shape[0] * 0.9)
     train_data, train_labels = data[:first], labels[:first]
     validation_data, validation_labels = data[first:], labels[first:]
 
     adversary = upper_bound_linear.LinearCorruptionOptimizer(C, k)
-    learner = upper_bound_linear.LinearUpperBoundLearner(C, regular_coef, n, True)
+    learner = upper_bound_linear.LinearUpperBoundLearner(C, regular_coef, n, False)
     iterative_adversary = upper_bound_iterative.IterativeCorruption(learner, adversary, train_data, train_labels, k)
     iterative_adversary.iterative_loss(n_iterations, validation_data, validation_labels, learning_rate)
 

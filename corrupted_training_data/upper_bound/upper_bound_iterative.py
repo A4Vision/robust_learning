@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 import numpy as np
 from corrupted_training_data import utils
 
@@ -21,16 +22,17 @@ class IterativeCorruption(object):
         self._corrupted_data = self._corrupter.corrupt_randomly(self._data, self._k)
 
     def iterative_loss(self, n_iterations, validation_data, validation_labels, learning_rate):
-        upper_bound_losses = []
-        real_losses = []
-        validation_accuracies = []
+        drops = []
         for i in xrange(n_iterations):
-            self._learner.optimize_hypothesis(self._corrupted_data, self._data_labels, 20, learning_rate)
+            validation_accuracies, drop = self._learner.optimize_hypothesis(self._corrupted_data, self._data_labels, 200, learning_rate,
+                                              validation_data, validation_labels)
+
+            drops.append(drop)
             self._corrupted_data = self._maximize_upper_bound(self._data, self._data_labels, self._learner.get_hypothesis())
-            upper_bound_losses.append(self._learner.upper_bound_loss(self._corrupted_data, self._data_labels))
-            real_losses.append(self._learner.loss(self._data, self._data_labels))
-            validation_accuracies.append(self._learner.accuracy(validation_data, validation_labels))
-        return upper_bound_losses, real_losses, validation_accuracies
+            # self._corrupted_data = self._corrupter.corrupt_randomly(self._data, self._k)
+        plt.plot(drops, 'r-+')
+        plt.show()
+        print drops
 
     def _maximize_upper_bound(self, data, labels, hypothesis):
         res = np.copy(data)
@@ -55,7 +57,8 @@ class UpperBoundLearner(object):
     def loss(self, data, labels):
         raise NotImplementedError
 
-    def optimize_hypothesis(self, corrupted_data, labels, n_epochs, learning_rate):
+    def optimize_hypothesis(self, corrupted_data, labels, n_epochs, learning_rate,
+                            validation_data, validation_labels):
         """
         Finds the hypothesis that minimizes the naive upper bound over the loss function.
         :param corrupted_data:
