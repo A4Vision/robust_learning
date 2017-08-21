@@ -29,7 +29,7 @@ class IterativeCorruption(object):
 
             drops.append(drop)
             self._corrupted_data = self._maximize_upper_bound(self._data, self._data_labels, self._learner.get_hypothesis())
-            # self._corrupted_data = self._corrupter.corrupt_randomly(self._data, self._k)
+            self._corrupted_data = self._corrupter.corrupt_randomly(self._data, self._k)
         plt.plot(drops, 'r-+')
         plt.show()
         print drops

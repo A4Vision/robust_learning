@@ -42,12 +42,20 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         part1 = theano.tensor.dot(self._X1_sym, self._w_sym)
         w_abs = theano.tensor.abs_(self._w_sym)
         part2 = C * theano.tensor.dot(self._X2_sym, w_abs)
-        self._xi = 1. - part1 * self._y_sym + part2 * 0
+        # If the adversary corrupts randomly, learner can simply treat coordinates as zeros.
+        # Since data is uniform around 0, and w values are also uniform, these coordinates are
+        # insignificant.
+        value = - part1 * self._y_sym + part2
+        self._xi = 1. - part1 * self._y_sym + part2
 
-        self._output = nnet.sigmoid(part1)
-        self._prediction = 2 * (self._output > 0.5) - 1
+        p = nnet.sigmoid(value)
+        self._cross_entropy_loss = self._y_sym * theano.tensor.log(p) + (self._y_sym + 1.) * theano.tensor.log(1. - p)
+        self._prediction = 2 * (part1 > 0.) - 1
 
-        loss = theano.tensor.max(self._xi, 0)
+        # Margin loss - as in SVM
+        # loss = theano.tensor.max(self._xi, 0)
+        # Sigmoid cross entropy loss - as in logistic regression.
+        loss = -self._cross_entropy_loss
         if use_square_loss:
             loss **= 2
 
@@ -64,7 +72,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
 
     def __create_functions(self):
         self._f_loss = theano.function([self._X1_sym, self._X2_sym, self._y_sym], [self._loss])
-        self._f_validation = theano.function([self._X1_sym], [self._output, self._prediction, self._l2_penalty])
+        self._f_validation = theano.function([self._X1_sym], [self._prediction, self._l2_penalty])
 
     def get_hypothesis(self):
         return self._w_sym.get_value()
@@ -94,7 +102,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
 
     def accuracy(self, data, labels):
         X1 = np.float32(data)
-        output, prediction, l2_penalty = self._f_validation(X1)
+        prediction, l2_penalty = self._f_validation(X1)
         accuracy = np.average(prediction == labels)
         return accuracy
 
