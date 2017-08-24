@@ -24,7 +24,7 @@ class IterativeCorruption(object):
     def iterative_loss(self, n_iterations, validation_data, validation_labels, learning_rate):
         drops = []
         for i in xrange(n_iterations):
-            validation_accuracies, drop = self._learner.optimize_hypothesis(self._corrupted_data, self._data_labels, 200, learning_rate,
+            validation_accuracies, drop = self._learner.optimize_hypothesis(self._corrupted_data, self._data_labels, 20, learning_rate,
                                               validation_data, validation_labels)
 
             drops.append(drop)

@@ -28,7 +28,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
     Inputs are limited to the [-C, C]^n box.
     """
 
-    def __init__(self, C, regular_coef, n, use_square_loss):
+    def __init__(self, C, regular_coef, n, gamma, use_square_loss, use_cross_entropy):
         self._regular_coef = regular_coef
         # Prepare Theano variables for inputs and targets
         # n length floating vector, 0s replace NULL entries
@@ -46,16 +46,18 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         # Since data is uniform around 0, and w values are also uniform, these coordinates are
         # insignificant.
         value = - part1 * self._y_sym + part2
-        self._xi = 1. - part1 * self._y_sym + part2
+        self._xi = gamma - part1 * self._y_sym + part2
 
         p = nnet.sigmoid(value)
         self._cross_entropy_loss = self._y_sym * theano.tensor.log(p) + (self._y_sym + 1.) * theano.tensor.log(1. - p)
         self._prediction = 2 * (part1 > 0.) - 1
 
-        # Margin loss - as in SVM
-        # loss = theano.tensor.max(self._xi, 0)
-        # Sigmoid cross entropy loss - as in logistic regression.
-        loss = -self._cross_entropy_loss
+        if use_cross_entropy:
+            # Sigmoid cross entropy loss - as in logistic regression.
+            loss = -self._cross_entropy_loss
+        else:
+            # Margin loss - as in SVM
+            loss = theano.tensor.max(self._xi, 0)
         if use_square_loss:
             loss **= 2
 
@@ -119,7 +121,7 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         f_training = theano.function([self._X1_sym, self._X2_sym, self._y_sym], outputs=[self._total_loss, self._loss],
                                      updates=sgd_updates)
         # beta = 0.8
-        batch_size = 500
+        batch_size = 50
         logging.info('training (n_epochs, batch_size) = (' + str(n_epochs) + ', ' + str(batch_size) + ')')
         # prev_train_loss = 10000.
         i = 0
@@ -132,11 +134,14 @@ class LinearUpperBoundLearner(upper_bound_iterative.UpperBoundLearner):
         for n in xrange(n_epochs):
             for x1_batch, x2_batch, y_batch in iterate_minibatches(X1, X2, Y, batch_size, shuffle=True):
                 f_training(x1_batch, x2_batch, y_batch)
-            total_loss_upper_bound_training = self._f_loss(X1, X2, Y)
+            total_loss_upper_bound_training = self._f_loss(X1, X2, Y)[0]
             accuracy_validation = self.accuracy(validation_data, validation_labels)
             training_losses.append(total_loss_upper_bound_training)
             accuracies.append(accuracy_validation)
             w_size.append(np.sum(self.get_hypothesis() ** 2))
+            print 'accuracy', accuracy_validation
+            print '||w||', w_size[-1]
+            print 'loss', total_loss_upper_bound_training
         print 'Training ({}) time elapsed: {}s'.format(n_epochs, time.time() - start)
         if plot:
             f, (ax1, ax2, ax3) = plt.subplots(3, 1, sharex=True)
